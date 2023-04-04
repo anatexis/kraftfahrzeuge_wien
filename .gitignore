@@ -1,0 +1,9 @@
+# Ignore the following files and directories
+/2d_map.html
+/3d_map.html
+/.git
+/.idea
+/kraft_wien
+/kraft_wien.py
+/vienna_districts.json
+
