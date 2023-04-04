@@ -10,9 +10,12 @@ from shapely.geometry import shape, Polygon
 
 # Download the CSV file
 url = 'https://www.wien.gv.at/gogv/l9ogdviebezbiztecveh2002f'
-csv_text  = requests.get(url).text
-csv_data = pd.read_csv(StringIO(csv_text), sep=';', header=1, decimal=',', )
-csv_data["PKW_VALUE"] = pd.to_numeric(csv_data["PKW_VALUE"], errors='coerce')
+@st.cache_data
+def load_data(url):
+    data = pd.read_csv(url, sep=';', header=1, decimal=',', thousands='.')
+    return data
+
+csv_data = load_data(url)
 
 # App title
 st.title('District Data Plotter')
@@ -31,13 +34,35 @@ csv_data = csv_data.assign(DISTRICT = csv_data['DISTRICT_CODE'].astype(str).str.
 value_options = list(csv_data.columns[5:-1])
 selected_value = st.selectbox('Select a value to plot:', value_options)
 
+# Map short codes to long titles
+title_mapping = {
+    'PKW_VALUE': 'Zugelassene Kraftfahrzeuge - Personenkraftwagen (inkl. Autotaxi)',
+    'BUS_VALUE': 'Zugelassene Kraftfahrzeuge - Omnibusse',
+    'LKW_VALUE': 'Zugelassene Kraftfahrzeuge - Lastkraftwagen',
+    'TRA_VALUE': 'Zugelassene Kraftfahrzeuge - Zugmaschinen und Traktoren',
+    'OTH_VALUE': 'Zugelassene Kraftfahrzeuge - Sonstige Kraftfahrzeuge',
+    'BIK_VALUE': 'Zugelassene Kraftfahrzeuge - Krafträder',
+    'PKW_DENSITY': 'Zugelassene Kraftfahrzeuge - Personenkraftwagen (inkl. Autotaxi) pro 1.000 EinwohnerInnen',
+    'BUS_DENSITY': 'Zugelassene Kraftfahrzeuge - Omnibusse pro 1.000 EinwohnerInnen',
+    'LKW_DENSITY': 'Zugelassene Kraftfahrzeuge - Lastkraftwagen pro 1.000 EinwohnerInnen',
+    'TRA_DENSITY': 'Zugelassene Kraftfahrzeuge - Zugmaschinen und Traktoren pro 1.000 EinwohnerInnen',
+    'OTH_DENSITY': 'Zugelassene Kraftfahrzeuge - Sonstige Kraftfahrzeuge pro 1.000 EinwohnerInnen',
+    'BIK_DENSITY': 'Zugelassene Kraftfahrzeuge - Krafträder pro 1.000 EinwohnerInnen'
+}
+
+# Display the long title according to the selected_value
+st.header(title_mapping[selected_value][:26])
+st.subheader(title_mapping[selected_value][28:])
+# get the data for whole Vienna (DISTRICT_CODE: 9000)
+st.text('Ganz Wien: ' + str(csv_data.loc[csv_data['DISTRICT_CODE'] == 90000, selected_value].values[0]) + title_mapping[selected_value][28:])
+
 # Load district boundaries GeoJSON for Vienna
 vienna_districts_geojson_url = "https://data.wien.gv.at/daten/geo?service=WFS&request=GetFeature&version=1.1.0&typeName=ogdwien:BEZIRKSGRENZEOGD&srsName=EPSG:4326&outputFormat=json"
 
 # Merge data with GeoJSON
 vienna_districts_geojson = requests.get(vienna_districts_geojson_url).json()
 
-
+@st.cache_data
 def merge_data_with_geojson(district_data, geojson, value_key):
     for feature in geojson["features"]:
         district = feature["properties"].get("BEZNR")
@@ -51,18 +76,19 @@ def merge_data_with_geojson(district_data, geojson, value_key):
                 feature["properties"]["centroid"] = (0, 0)
     return geojson
 
-
+@st.cache_data
 def generate_text_data(geojson, value_key):
     text_data = []
 
     for feature in geojson["features"]:
         district_value = feature["properties"].get(value_key)
         centroid = feature["properties"].get("centroid")
+        distr_name = feature["properties"].get("NAMEG")
 
         if district_value is not None and centroid is not None:
             text_data.append({
                 "position": centroid,
-                "text": str(district_value)
+                "text": str(f"{distr_name}:\n{district_value}")
             })
 
     return text_data
@@ -70,15 +96,16 @@ def generate_text_data(geojson, value_key):
 
 merged_data = merge_data_with_geojson(csv_data, vienna_districts_geojson, selected_value)
 
-
+@st.cache_data
 def create_2d_map_pydeck(geojson, value_key):
     # Create the GeoJSON layer
     geojson_layer = pdk.Layer(
         "GeoJsonLayer",
         geojson,
         opacity=0.8,
-        get_fill_color=[128, 128, 128, 40],
-        get_line_color=[255, 1, 255],
+        get_fill_color=[100, 100, 80, 60],
+        get_line_color=[0, 0, 0],
+        get_line_width=10,
         pickable=True,
         auto_highlight=True
     )
@@ -93,8 +120,8 @@ def create_2d_map_pydeck(geojson, value_key):
         pickable=False,
         get_position="position",
         get_text="text",
-        get_size=16,
-        get_color=[255, 255, 255],
+        get_size=13,
+        get_color=[0,40,0],
         get_angle=0,
         get_text_anchor='"middle"',
         get_alignment_baseline='"center"',
@@ -102,7 +129,7 @@ def create_2d_map_pydeck(geojson, value_key):
     )
 
     # Set the initial view state
-    view_state = pdk.ViewState(latitude=48.1351, longitude=11.5820, zoom=10)
+    #view_state = pdk.ViewState(latitude=48.1351, longitude=11.5820, zoom=10)
 
     # Render the map
     return pdk.Deck(
@@ -110,11 +137,11 @@ def create_2d_map_pydeck(geojson, value_key):
         initial_view_state={
             "latitude": 48.2082,
             "longitude": 16.3738,
-            "zoom": 10.2,
+            "zoom": 12,
             "pitch": 0,
             "bearing": 0,
         },
-        map_provider="mapbox", map_style="mapbox://styles/mapbox/light-v10")
+        map_provider="mapbox", map_style=None)
 
 
 
