@@ -1,2 +1,2 @@
 # kraftfahrzeuge_wien
-Interactiv vizualisation of registered vehicles in Vienna
+Interactive vizualisation of registered vehicles in Vienna
