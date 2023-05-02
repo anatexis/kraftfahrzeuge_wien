@@ -184,9 +184,49 @@ def main():
     st.pydeck_chart(map_2d_pydeck)
 
     st.subheader(f'Daten für das Jahr {selected_year}')
-    st.dataframe(csv_data_filtered[csv_data_filtered.columns[5:-1]])
+    # Convert district data from GeoJSON to DataFrame
+    districts_df = pd.DataFrame(
+            [(feature["properties"]["BEZNR"], feature["properties"]["NAMEG"]) for feature in geojson_bare["features"]],
+            columns=["DISTRICT", "District Name"])
+
+    # Merge district names to the filtered dataset
+    table_data = csv_data_filtered.merge(districts_df, on="DISTRICT")
+
+    # Filter the original data for the row with DISTRICT_CODE 900 (whole Vienna)
+    whole_vienna_row = csv_data.loc[(csv_data['REF_YEAR'] == selected_year) & (csv_data['DISTRICT_CODE'] == 90000)]
+
+    # Add a column "District Name" with the value "GANZ WIEN" to the whole_vienna_row
+    whole_vienna_row["District Name"] = "GANZ WIEN"
+
+    # Concatenate the whole_vienna_row and table_data
+    table_data = pd.concat([whole_vienna_row, table_data], ignore_index=True, sort=False)
+
+    # Display the table with district names and other columns
+    st.dataframe(table_data[['District Name'] + list(table_data.columns[5:-2])])
+
     
     st.markdown('''
+
+    ---
+
+    Diese Streamlit-Webanwendung visualisiert den Fahrzeugbestand in den Wiener Bezirken anhand von offenen Daten der Stadt Wien. Die App bietet eine interaktive Karte, auf der die Anzahl der zugelassenen Fahrzeuge pro Bezirk nach Fahrzeugtypen aufgeschlüsselt und auf die Bevölkerungszahl normiert dargestellt wird. Benutzer können auswählen, nach welchem Jahr gefiltert und welcher Fahrzeugtyp angezeigt werden soll.
+    
+    | Kürzel       | Beschreibung                                                                      |
+    |--------------|-----------------------------------------------------------------------------------|
+    | PKW_VALUE    | Zugelassene Kraftfahrzeuge - Personenkraftwagen (inkl. Autotaxi)                 |
+    | BUS_VALUE    | Zugelassene Kraftfahrzeuge - Omnibusse                                           |
+    | LKW_VALUE    | Zugelassene Kraftfahrzeuge - Lastkraftwagen                                      |
+    | TRA_VALUE    | Zugelassene Kraftfahrzeuge - Zugmaschinen und Traktoren                          |
+    | OTH_VALUE    | Zugelassene Kraftfahrzeuge - Sonstige Kraftfahrzeuge                             |
+    | BIK_VALUE    | Zugelassene Kraftfahrzeuge - Krafträder                                          |
+    | PKW_DENSITY  | Zugelassene Kraftfahrzeuge - Personenkraftwagen (inkl. Autotaxi) pro 1.000 EinwohnerInnen |
+    | BUS_DENSITY  | Zugelassene Kraftfahrzeuge - Omnibusse pro 1.000 EinwohnerInnen                 |
+    | LKW_DENSITY  | Zugelassene Kraftfahrzeuge - Lastkraftwagen pro 1.000 EinwohnerInnen            |
+    | TRA_DENSITY  | Zugelassene Kraftfahrzeuge - Zugmaschinen und Traktoren pro 1.000 EinwohnerInnen |
+    | OTH_DENSITY  | Zugelassene Kraftfahrzeuge - Sonstige Kraftfahrzeuge pro 1.000 EinwohnerInnen    |
+    | BIK_DENSITY  | Zugelassene Kraftfahrzeuge - Krafträder pro 1.000 EinwohnerInnen                |
+
+    ---
 
     Datenquelle und Datensätze:
 
