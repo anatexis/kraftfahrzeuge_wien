@@ -6,6 +6,11 @@ import requests
 from io import StringIO
 import pydeck as pdk
 from shapely.geometry import shape, Polygon
+import pprint
+
+def print_geojson(geojson):
+    pp = pprint.PrettyPrinter(indent=2)
+    pp.pprint(geojson)
 
 CSV_URL = 'https://www.wien.gv.at/gogv/l9ogdviebezbiztecveh2002f'
 VIENNA_DISTRICTS_GEOJSON_URL = "https://data.wien.gv.at/daten/geo?service=WFS&request=GetFeature&version=1.1.0&typeName=ogdwien:BEZIRKSGRENZEOGD&srsName=EPSG:4326&outputFormat=json"
@@ -77,22 +82,43 @@ def generate_text_data(geojson, value_key):
     return text_data
 
 @st.cache_data
-def create_2d_map_pydeck(geojson, value_key, year):
+def generate_districts_geojson(geojson_bare):
+    """Generate a GeoJSON containing only district data."""
+    district_geojson = {
+        "type": "FeatureCollection",
+        "features": []
+    }
+    
+    for feature in geojson_bare["features"]:
+        district_feature = {
+            "type": "Feature",
+            "properties": {
+                "NAMEG": feature["properties"].get("NAMEG"),
+                "BEZNR": feature["properties"].get("BEZNR")
+            },
+            "geometry": feature["geometry"]
+        }
+        district_geojson["features"].append(district_feature)
+        
+    return district_geojson
+
+
+@st.cache_data
+def create_2d_map_pydeck(geojson_bare, geojson_combined, value_key, year):
     """Create a 2D map using pydeck."""
     geojson_layer = pdk.Layer(
         "GeoJsonLayer",
-        geojson,
+        geojson_bare,
         opacity=0.8,
         get_fill_color=[100, 100, 80, 60],
         get_line_color=[0, 0, 0],
         get_line_width=10,
         pickable=True,
         auto_highlight=True
-
     )
 
     # Generate the data for the Text layer
-    text_data = generate_text_data(geojson, value_key)
+    text_data = generate_text_data(geojson_combined, value_key)
 
     # Create the Text layer
     text_layer = pdk.Layer(
@@ -109,21 +135,15 @@ def create_2d_map_pydeck(geojson, value_key, year):
         auto_highlight=True
     )
 
+
     return pdk.Deck(
-               layers=[geojson_layer, text_layer],
+        layers=[geojson_layer, text_layer],
         initial_view_state={
             "latitude": 48.2082,
             "longitude": 16.3738,
             "zoom": 12,
             "pitch": 0,
             "bearing": 0,
-        },
-        tooltip={
-            "html": "<b>Elevation Value:</b> {'NAMEK_NUM'}",
-            "style": {
-                "backgroundColor": "steelblue",
-                "color": "white"
-            }
         },
         map_provider="mapbox", map_style=None)
 
@@ -151,16 +171,18 @@ def main():
     
     # Load district boundaries GeoJSON for Vienna
     vienna_districts_geojson = requests.get(VIENNA_DISTRICTS_GEOJSON_URL).json()
-    
+    # create bare GeoJSON for districts
+    geojson_bare = generate_districts_geojson(vienna_districts_geojson)
+
+
     # Merge data with GeoJSON
     merged_data = merge_data_with_geojson(csv_data_filtered, vienna_districts_geojson, selected_value)
     
     # Create the 2D map with numbers on districts using pydeck
-    map_2d_pydeck = create_2d_map_pydeck(merged_data, selected_value, selected_year)
+    map_2d_pydeck = create_2d_map_pydeck(geojson_bare, merged_data, selected_value, selected_year)
     
-    # Display the map in Streamlit
     st.pydeck_chart(map_2d_pydeck)
-    
+
     st.subheader(f'Daten für das Jahr {selected_year}')
     st.dataframe(csv_data_filtered[csv_data_filtered.columns[5:-1]])
     
@@ -174,6 +196,8 @@ def main():
      & [Bezirksgrenzen Wien](https://www.data.gv.at/katalog/de/dataset/stadt-wien_bezirksgrenzenwien)
     
                 ''')
+
+    #print_geojson(geojson_bare)
 
 
 if __name__ == "__main__":
