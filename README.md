@@ -30,3 +30,9 @@ You can access the application online without installing any dependencies or run
 - City of Vienna: https://data.wien.gv.at
 - [Zugelassene Kraftfahrzeuge seit 2002 - Bezirke Wien](https://www.data.gv.at/katalog/de/dataset/vie-bez-biz-tec-veh-2002f)
 - [Bezirksgrenzen Wien](https://www.data.gv.at/katalog/de/dataset/stadt-wien_bezirks
+
+## To Do
+
+- Make numbers easier to read (change underlying map? change appearance of numbers?)
+- Visualization of trend (plot by years)
+- Write a better description 
